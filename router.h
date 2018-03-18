@@ -1,12 +1,12 @@
 /*-----------------------------------------------------------------------------
-Filename:- 	router.h
-Descritption:- This is the header file for the software IP router project 
-			routing process created as part of CSCI558L lab project.
-Date:-		Sept 26th 2014 - Oct 5th 2014
-Authors:- 	Weichen Zhao, Lohith Bellad
-			University of Southern California, Los Angeles, California
-Platform:- 	Mac OS X Mountain Lion, Ubuntu 12.04
-Place:-		Los Angeles, California
+Filename:-      router.h
+Descritption:-  This is the header file for the software IP router project 
+                routing process created as part of CSCI558L lab project.
+Date:-          Sept 26th 2014 - Oct 5th 2014
+Authors:-       Weichen Zhao, Lohith Bellad
+                University of Southern California, Los Angeles, California
+Platform:-      FreeBSD, Ubuntu 12.04
+Place:-         Los Angeles, California
 -----------------------------------------------------------------------------*/
 #define _GNU_SOURCE     /* To get defns of NI_MAXSERV and NI_MAXHOST */
 #include <stdlib.h>
