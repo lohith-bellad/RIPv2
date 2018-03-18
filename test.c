@@ -11,10 +11,10 @@ Place:-		Los Angeles, California
 -----------------------------------------------------------------------------*/
 #include "router.h"
 
-struct routingTableElem route_table[50];//creating table for large number of networks
-struct ll_addr* intfSockTable;//pointer to socket <-> interface table
+struct routing_table_elem route_table[50];//creating table for large number of networks
+struct ll_addr* intf_sock_table;//pointer to socket <-> interface table
 int t_size;//routing table size
-int intfCount = 0;
+int intf_count = 0;
 
 // function to send RIP response packets
 int sendRipResponse(){
@@ -37,8 +37,8 @@ int sendRipResponse(){
 	
     for( i=0; i < intfCount; i++)
     {
-		mask_addr = (struct sockaddr_in *)intfSockTable[i].if_ad->ifa_netmask;
-		sock_addr = (struct sockaddr_in *)intfSockTable[i].if_ad->ifa_addr;
+		mask_addr = (struct sockaddr_in *)intf_sock_table[i].if_ad->ifa_netmask;
+		sock_addr = (struct sockaddr_in *)intf_sock_table[i].if_ad->ifa_addr;
 		masked_addr = (sock_addr->sin_addr.s_addr & mask_addr->sin_addr.s_addr);
 		rip_payload = (struct rippayload *)&rip_rt[i*20];
 		rip_payload->family = htons(2);
@@ -55,8 +55,8 @@ int sendRipResponse(){
     for( i=0; i < intfCount; i++)
 	{
 		// create headers
-		sock_addr = (struct sockaddr_in *)intfSockTable[i].if_ad->ifa_addr;
-    		buildEther(multicast, intfSockTable[i].self_mac, 0x0800, rip_req_buffer);
+		sock_addr = (struct sockaddr_in *)intf_sock_table[i].if_ad->ifa_addr;
+    		buildEther(multicast, intf_sock_table[i].self_mac, 0x0800, rip_req_buffer);
 		buildIp((u_char *)&sock_addr->sin_addr.s_addr,rip_dip, 17, 32, rip_req_buffer + ETH_HDR_LEN);
 		buildUdp(520, 520, 32, rip_req_buffer + ETH_HDR_LEN + IP_HDR_LEN);
 
@@ -74,7 +74,7 @@ int sendRipResponse(){
 		ret = 46 + (intfCount*20);
 		//print_payload(rip_res_buffer, ret);
 		// send the RIP response packet
-		if( (err = send(intfSockTable[i].sock_id,rip_res_buffer,ret,0)) != ret)
+		if( (err = send(intf_sock_table[i].sock_id,rip_res_buffer,ret,0)) != ret)
 		{
 			printf("Error sending the RIP response packet\n");
 			exit(1);
@@ -112,16 +112,16 @@ int sendRipRequest(){
     // loop to send RIP request and response messages on all interfaces
     for( i=0; i < intfCount; i++)
     {
-	    sock_addr = (struct sockaddr_in *)intfSockTable[i].if_ad->ifa_addr;
+	    sock_addr = (struct sockaddr_in *)intf_sock_table[i].if_ad->ifa_addr;
 	    // build ether header
-    	    buildEther(multicast, intfSockTable[i].self_mac, 0x0800, rip_req_buffer);
+    	    buildEther(multicast, intf_sock_table[i].self_mac, 0x0800, rip_req_buffer);
 	    // build IP header
 	    buildIp((u_char *)&sock_addr->sin_addr.s_addr,rip_dip, 17, 32, rip_req_buffer + ETH_HDR_LEN);
 	    // build udp header
 	    buildUdp(520, 520, 32, rip_req_buffer + ETH_HDR_LEN + IP_HDR_LEN);
 	    ret = 68;
 	    // send the request packet!!!
-	    if( (err = send(intfSockTable[i].sock_id,rip_req_buffer,ret,0)) != ret)
+	    if( (err = send(intf_sock_table[i].sock_id,rip_req_buffer,ret,0)) != ret)
 	    	{
 			printf("Error sending the RIP request packet\n");
 			exit(1);
@@ -150,224 +150,192 @@ void *check( ){
 	}
 }
 // main function hahahaaaa
-int main(int argc, char **argv)
-{
-   // stack variables  
-   int handle = 0,ret=0,s;
-   uint8_t* mac;
-   u_char dst_mac[4],*ptrr;
-   struct ifreq ifr;
-   u_char buffer[1500],icmp_buffer[1500];//, rip_req_buffer[100];
-   //u_char rip_res_buffer[1500],
-   struct ifaddrs *addrs,*tmp;
-   char host[NI_MAXHOST], mask[NI_MAXHOST];
-   //struct ll_addr* intfSockTable;
-   int tableIndex = 0;
-   struct sockaddr_ll sll;
-   struct sockaddr_in *sock_addr,*mask_addr; 
-   struct ether_header *eth_hdr;
-   struct ip *ip_hdr;
-   int i,err,icmp_check,sending_sock;
-   struct arpreq arpreqq;
-   //struct routingTableElem route_table[50];//creating table for large number of networks
-   __be32 dest_ip;
-   u_char *ptr;
-   u_char fin_dst_mac[6], fin_src_mac[6];
+int main(int argc, char **argv) {
    
-
+	int handle = 0,ret=0,s;
+	uint8_t* mac;
+	u_char dst_mac[4],*ptrr;
+	struct ifreq ifr;
+	u_char buffer[1500],icmp_buffer[1500];
+	struct ifaddrs *addrs,*tmp;
+	char host[NI_MAXHOST], mask[NI_MAXHOST];
+	int table_index = 0;
+	struct sockaddr_ll sll;
+	struct sockaddr_in *sock_addr,*mask_addr; 
+	struct ether_header *eth_hdr;
+	struct ip *ip_hdr;
+	int i,err,icmp_check,sending_sock;
+	struct arpreq arpreqq;
+	__be32 dest_ip;
+	u_char *ptr;
+	u_char fin_dst_mac[6], fin_src_mac[6];
    
 #ifdef FUNCTION_DEMO
-   u_char *res_ptr;
-   int hop_cnt;   
-   struct riphdr *rip_hdr;
-   struct udphdr *udp_hdr;
-   int num_entries_res = 0;
-   char int_name[5];
-   u_char dd_host[6];
-   pthread_t wait;
-   struct in_addr *sock_addr_r,*mask_addr_r;
-   u_char rip_rt[500];
+	u_char *res_ptr;
+	int hop_cnt;   
+	struct riphdr *rip_hdr;
+	struct udphdr *udp_hdr;
+	int num_entries_res = 0;
+	char int_name[5];
+	u_char dd_host[6];
+	pthread_t wait;
+	struct in_addr *sock_addr_r,*mask_addr_r;
+	u_char rip_rt[500];
 #endif  	   
-   // recieving the DETER control network interface to neglect it in our program		   
-   if(argc < 1)
-   {
+	if(argc < 1) {
 	   printf("Usage: sudo ./route eth#");
 	   return 0;
-   }
+	}
    
-   // sending PING to build the kernel ARP table
-   //----------------------------------------------Please modify here accordingly, dont neglect the DEMO-------------------------------------------
-   if( (err = system("ping 10.1.1.2 -c 1")) < 0)
-   {
-    		printf("Failed in building ARP table\n");
-   	 	exit(0);
-   }
-   if( (err = system("ping 10.2.1.2 -c 1")) < 0)
-   {
-    		printf("Failed in building ARP table\n");
-    	 	exit(0);
-   }
-   if( (err = system("ping 10.3.1.2 -c 1")) < 0)
-   {
-    		printf("Failed in building ARP table\n");
-    	 	exit(0);
-   }
-   if( (err = system("ping 10.4.1.2 -c 1")) < 0)
-   {
-    		printf("Failed in building ARP table\n");
-    	 	exit(0);
-   }
-   // create raw socket that listens to everything, the father of all...
-   handle = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
-   memset(&ifr, 0, sizeof(ifr));
-   memset(&sll, 0, sizeof(sll));
-   sll.sll_family    = AF_PACKET;
-   sll.sll_protocol  = htons(ETH_P_ALL);//htons(0x3333)
-   if ( bind( handle, (struct sockaddr *) &sll, sizeof(sll)) == -1 )
-   {
-      printf("fail binding\n");
-      return 0;
-   }
-   printf("Binding listening socket to %x\n", sll.sll_protocol);
-   getifaddrs(&addrs);
-   tmp = addrs;
-   //checking the number of interfaces
-   while (tmp)
-   {
-       if (tmp->ifa_addr->sa_family == AF_INET)
-			intfCount += 1;
+	/* 
+	 * create raw socket that listens to everything,
+         * the father of all...
+         */
+	handle = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+	memset(&ifr, 0, sizeof(ifr));
+	memset(&sll, 0, sizeof(sll));
+	sll.sll_family    = AF_PACKET;
+	sll.sll_protocol  = htons(ETH_P_ALL);//htons(0x3333)
+	if (bind(handle, (struct sockaddr *) &sll, sizeof(sll)) == -1) {
+		printf("Failed binding to socket\n");
+		return 0;
+	}
+	getifaddrs(&addrs);
+	tmp = addrs;
+	while (tmp) {
+		if (tmp->ifa_addr->sa_family == AF_INET)
+			intf_count += 1;
 		tmp = tmp->ifa_next;
-   }
-   intfCount -= 2;
-   // print some info of interfaces
-   printf("----------------------------------------------------------------------------------------------------------\n");
-   printf("Total number of custom routing interfaces is: %d\n",intfCount);
-   printf("------------------------------------------------\n");
-   printf("Name\t    IP\t\t  SUBNET MASK\t\t    MAC Address\n");
-   printf("----\t    --\t\t  -----------\t\t    -----------\n");
-   // allocation memory for intf <-> socket table
-   intfSockTable = malloc((intfCount) * sizeof(struct ll_addr));
-   ptrr = dst_mac;
-   tmp = addrs;
-   while (tmp)
-   {
-   		if (tmp->ifa_addr && tmp->ifa_addr->sa_family == AF_INET)
-		{
-       	   printf("%s", tmp->ifa_name);
-       	   //family = tmp->ifa_addr->sa_family;
-
-       	   s = getnameinfo(tmp->ifa_addr, sizeof(struct sockaddr_in),host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
-             s |= getnameinfo(tmp->ifa_netmask, sizeof(struct sockaddr_in),mask, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
-             if (s != 0) 
-	  	   {
-          	  printf("getnameinfo() failed: %s\n", gai_strerror(s));
-           	  exit(EXIT_FAILURE);
-	  	   }
-       	   printf("\t<%s>\t <%s>", host, mask);
-	  	   strcpy( ifr.ifr_name, tmp->ifa_name );
-		   if( ioctl( handle, SIOCGIFHWADDR, &ifr ) != -1 )
-		   {
-			   if(strncmp(tmp->ifa_name,"lo",2))
-		           {
-			   	mac = (uint8_t*)ifr.ifr_ifru.ifru_hwaddr.sa_data;
-		        	printf( "\t<%02X:%02X:%02X:%02X:%02X:%02X>\n",MAC_ADDR(mac));
-			   }
-			   else
-				   printf("\t\t\t---\n");
-			   if( isRoutingPort(tmp->ifa_name,argv[1]) )
-			   {
-				   intfSockTable[tableIndex].sock_id = createSocket(tmp->ifa_name);
-			 	   intfSockTable[tableIndex].if_ad = tmp;
-				   memcpy(intfSockTable[tableIndex].self_mac,ifr.ifr_ifru.ifru_hwaddr.sa_data,6);
-				   tableIndex += 1;
-			  	   sprintf((char *)ptrr,"%c",mac[5]);
-				   ptrr = ptrr+1;
-			   }
-       	   	    }
+	}
+	intf_count -= 2;
+   
+	printf("------------------------------------------------------------
+               ----------------------------------------------\n");
+	printf("Total number of custom routing interfaces is: %d\n",intf_count);
+	printf("------------------------------------------------\n");
+	printf("Name\t    IP\t\t  SUBNET MASK\t\t    MAC Address\n");
+	printf("----\t    --\t\t  -----------\t\t    -----------\n");
+   
+	intf_sock_table = malloc((intf_count) * sizeof(struct ll_addr));
+	ptrr = dst_mac;
+	tmp = addrs;
+	while (tmp) {
+   		if (tmp->ifa_addr && tmp->ifa_addr->sa_family == AF_INET) {
+			printf("%s", tmp->ifa_name);
+			s = getnameinfo(tmp->ifa_addr,
+					sizeof(struct sockaddr_in), host,
+                                        NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+			s |= getnameinfo(tmp->ifa_netmask, 
+					sizeof(struct sockaddr_in), mask, 
+					NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+			if (s != 0) {
+				printf("getnameinfo() failed: %s\n", 
+				       gai_strerror(s));
+				exit(EXIT_FAILURE);
+			}
+			printf("\t<%s>\t <%s>", host, mask);
+			strcpy (ifr.ifr_name, tmp->ifa_name);
+			if (ioctl(handle, SIOCGIFHWADDR, &ifr) != -1) {
+				if (strncmp(tmp->ifa_name, "lo", 2)) {
+					mac = (uint8_t*)ifr.ifr_ifru. \
+						        ifru_hwaddr.sa_data;
+					printf("\t<%02X:%02X:%02X:%02X:
+					       %02X:%02X>\n", MAC_ADDR(mac));
+				} else
+					printf("\t\t\t---\n");
+			   
+				if (is_routing_port(tmp->ifa_name, argv[1])) {
+					intf_sock_table[table_index].sock_id =
+ 						create_socket(tmp->ifa_name);
+					intf_sock_table[table_index].if_ad = 
+						tmp;
+					memcpy (intf_sock_table[table_index]. \
+						self_mac,ifr.ifr_ifru. \
+						ifru_hwaddr.sa_data,6);
+					table_index += 1;
+					sprintf((char *)ptrr,"%c",mac[5]);
+					ptrr = ptrr+1;
+				}
+			}
 		}
-    	 	tmp = tmp->ifa_next;
-    }
-    //------------------------------------Please modify here accordingly, dont neglect the DEMO, nah!!!----------------------------------------
-    find_lan_mac_add(&arpreqq,"10.1.1.2", "eth0",handle);	
-    mac = (uint8_t*)&arpreqq.arp_ha.sa_data;
-    memcpy(intfSockTable[0].lan_mac,arpreqq.arp_ha.sa_data,6);
-   
-    find_lan_mac_add(&arpreqq,"10.2.1.2", "eth1",handle);	
-    mac = (uint8_t*)&arpreqq.arp_ha.sa_data;
-    memcpy(intfSockTable[1].lan_mac,arpreqq.arp_ha.sa_data,6);
-    
-    find_lan_mac_add(&arpreqq,"10.3.1.2", "eth5",handle);	
-    mac = (uint8_t*)&arpreqq.arp_ha.sa_data;
-    memcpy(intfSockTable[2].lan_mac,arpreqq.arp_ha.sa_data,6);
-    
-    find_lan_mac_add(&arpreqq,"10.4.1.2", "eth5",handle);	
-    mac = (uint8_t*)&arpreqq.arp_ha.sa_data;
-    memcpy(intfSockTable[3].lan_mac,arpreqq.arp_ha.sa_data,6);
-    
-   
-    // Adding static routing table entries to the table, depending on interfaces used for custom routing 
-    for( i=0; i < intfCount ; i++)
-    {
-	     sock_addr = (struct sockaddr_in *)intfSockTable[i].if_ad->ifa_addr;
-		mask_addr = (struct sockaddr_in *)intfSockTable[i].if_ad->ifa_netmask;
-    		err = routingTableAddEntry(route_table, ((sock_addr->sin_addr.s_addr) & (mask_addr->sin_addr.s_addr)) , mask_addr->sin_addr.s_addr, intfSockTable[i].if_ad->ifa_name,\
-    		 	intfSockTable[i].sock_id,intfSockTable[i].lan_mac , intfSockTable[i].self_mac,1,&t_size);
-    }   
-    err = routingTableDump(route_table, t_size);
+		tmp = tmp->ifa_next;
+	}
+
+	/* 
+	 * Adding static routing table entries to the table,
+	 * depending on interfaces used for custom routing
+	 */ 
+	for (i=0; i < intf_count ; i++) {
+		sock_addr = (struct sockaddr_in *)intf_sock_table[i]. \
+                            if_ad->ifa_addr;
+		mask_addr = (struct sockaddr_in *)intf_sock_table[i]. \
+			    if_ad->ifa_netmask;
+    		err = routing_table_add_entry(route_table, 
+					      ((sock_addr->sin_addr.s_addr) & 
+                                               (mask_addr->sin_addr.s_addr)),
+                                              mask_addr->sin_addr.s_addr,
+                                              intf_sock_table[i].if_ad->ifa_name,
+					      intf_sock_table[i].sock_id,
+					      intf_sock_table[i].lan_mac,
+					      intf_sock_table[i].self_mac,
+					      1,
+					      &t_size);
+	}
+	err = routing_table_dump(route_table, t_size);
 #ifdef FUNCTION_DEMO
-    	
-	// creating threads
 	pthread_create(&wait, NULL, check, NULL);
-    
-	// sending request and response packets
 	sendRipRequest();
 	sendRipResponse();
 #endif    
-   // Forever loop!!!, capture packets and forward it, as fast as possible, anyways!!!, go packets gooooo, 
-   while(1)
-   {
-      memset(&buffer, 0, sizeof(buffer));
-	 memset(&icmp_buffer,0,sizeof(icmp_buffer));
-      ret = recv(handle, buffer, sizeof(buffer), 0);
-      if(ret > 0)
-	 {
-         eth_hdr = (struct ether_header *)buffer;
-         if(ntohs(eth_hdr->ether_type) == ETHERTYPE_IP)
-	    {
-		    if(dst_mac[0] == eth_hdr->ether_dhost[5] || dst_mac[1] == eth_hdr->ether_dhost[5] || eth_hdr->ether_dhost[5] == '\x09' || dst_mac[2] == eth_hdr->ether_dhost[5])
-		    {
-			    /*-------------------------------the main routing part-------------------------------*/
-			    // parsing IP header
-				ip_hdr = (struct ip*)&buffer[14];
+	/*
+	 * Forever loop!!!, capture packets and forward it,
+	 * as fast as possible, anyways!!!, go packets gooooo, 
+	 */
+	while(1) {
+		memset(&buffer, 0, sizeof(buffer));
+		memset(&icmp_buffer,0,sizeof(icmp_buffer));
+		ret = recv(handle, buffer, sizeof(buffer), 0);
+		if (ret <= 0)
+			continue; 
+
+		eth_hdr = (struct ether_header *)buffer;
+		if (ntohs(eth_hdr->ether_type) != ETHERTYPE_IP)
+			continue;
+
+		if(dst_mac[0] == eth_hdr->ether_dhost[5] ||
+		   dst_mac[1] == eth_hdr->ether_dhost[5] ||
+		   eth_hdr->ether_dhost[5] == '\x09' ||
+		   dst_mac[2] == eth_hdr->ether_dhost[5]) {
+
+			ip_hdr = (struct ip*)&buffer[14];
 #ifdef FUNCTION_DEMO				
-				// check for UDP packets 
-				if(ip_hdr->ip_p == TYPE_UDP)
-				{
-					udp_hdr = (struct udphdr *)&buffer[34];
-					//printf("UDP, %d, %d\n", udp_hdr->dest, htons(520));
+			if(ip_hdr->ip_p == TYPE_UDP) {
+				udp_hdr = (struct udphdr *)&buffer[34];
+
+				/*
+			 	 * check for RIP_v2 response packets
+			 	 */ 
+				if(udp_hdr->dest == htons(520)) {
+					if(eth_hdr->ether_shost[5] == dst_mac[0] ||
+					   eth_hdr->ether_shost[5] == dst_mac[1] ||
+					   eth_hdr->ether_shost[5] == dst_mac[2])
+						continue;
 					
-					// check for RIP_V2 response packets 
-					if(udp_hdr->dest == htons(520))
-					{
-						//printf("%c %c %c %c\n",eth_hdr->ether_shost[5],dst_mac[0],dst_mac[1],dst_mac[2]);
-						// neglect self response packets
-						if(eth_hdr->ether_shost[5] == dst_mac[0] || eth_hdr->ether_shost[5] == dst_mac[1] || eth_hdr->ether_shost[5] == dst_mac[2])
-							continue;
-					
-						rip_hdr = (struct riphdr *)&buffer[42];
-						if(rip_hdr->comm == 2)// we got a response packet here, hurray!!!, time to update our routing table
-						{
-							//printf("got RIP packet\n");
-							memset(rip_rt,0,sizeof(rip_rt));
-							memset(int_name,0,sizeof(int_name));
-							// get the interface name
-							if( (err = find_intf_name(intfSockTable,intfCount,eth_hdr->ether_shost,int_name,dd_host)) < 0)
-							{
+					rip_hdr = (struct riphdr *)&buffer[42];
+					/*
+					 * We got a response packet from other,
+					 * router, time to update our routing 
+					 * table.
+					 */
+					if(rip_hdr->comm == 2) {
+						memset(rip_rt, 0, sizeof(rip_rt));
+						memset(int_name,0,sizeof(int_name));
+						if( (err = find_intf_name(intf_sock_table,intfCount,eth_hdr->ether_shost,int_name,dd_host)) < 0)
 								printf("Error getting interface name\n");
 								continue;//exit(1);
 							}
 							// get the sending socket id
-							if( (sending_sock = find_sock_smac(intfSockTable,intfCount,eth_hdr->ether_shost)) < 0)
+							if( (sending_sock = find_sock_smac(intf_sock_table,intfCount,eth_hdr->ether_shost)) < 0)
 							{
 								printf("Error looking up the Interface table for sock_id\n");
 								continue;//exit(1);
@@ -399,10 +367,10 @@ int main(int argc, char **argv)
 				// send the ICMP time-exceeded packet back to host
 				if( (icmp_check = UpdateTTL(ip_hdr)) < 0)
 				{
-					if( (ret = create_icmp(buffer, icmp_buffer,intfSockTable,intfCount)) < 0)
+					if( (ret = create_icmp(buffer, icmp_buffer,intf_sock_table,intfCount)) < 0)
 						printf("Error creating the ICMP Time exceeded packet\n");
 				
-					if( (sending_sock = find_sock_dmac(intfSockTable,intfCount,eth_hdr->ether_dhost)) < 0)
+					if( (sending_sock = find_sock_dmac(intf_sock_table,intfCount,eth_hdr->ether_dhost)) < 0)
 						printf("Error looking up the Interface table\n");
 					
 					if( (err = send(sending_sock,icmp_buffer,ret,0)) != ret)
@@ -418,10 +386,10 @@ int main(int argc, char **argv)
 					if( (err = routingTableLookUp(route_table, dest_ip,t_size, fin_dst_mac, fin_src_mac, &sending_sock, NULL, RETURN_VALID)) < 0)
 					{	
 						// if error in looking up, send ICMP host unreachable message back to host
-						if( (ret = create_icmp_hu(buffer, icmp_buffer,intfSockTable,intfCount)) < 0)
+						if( (ret = create_icmp_hu(buffer, icmp_buffer,intf_sock_table,intfCount)) < 0)
 							printf("Error creating the ICMP Time exceeded packet\n");
 							
-						if( (sending_sock = find_sock_dmac(intfSockTable,intfCount,eth_hdr->ether_dhost)) < 0)
+						if( (sending_sock = find_sock_dmac(intf_sock_table,intfCount,eth_hdr->ether_dhost)) < 0)
 							printf("Error looking up the Interface table\n");
 						
 						if( (err = send(sending_sock,icmp_buffer,ret,0)) != ret)
@@ -441,32 +409,10 @@ int main(int argc, char **argv)
 					}	
 					//#ifdef FUNCTION_DEMO 
 				}
-				//#endif	
-				/*--------------------------------------------------------------------*/
-				// Printing the packet recieved info, comment it if not required, thank you	
-				/*ptr = eth_hdr->ether_shost;
-	    			printf("Source MAC: ");
-	     		i = ETHER_ADDR_LEN;
-	     		do
-				{
-	     	    	 	printf("%s%x",(i == ETHER_ADDR_LEN) ? "" : ":",*ptr++);
-	     		}while(--i>0);
-	    			printf("\tDestination MAC: ");
-	    			ptr = eth_hdr->ether_dhost;
-	     		i = ETHER_ADDR_LEN;
-	     		do
-				{
-	     	    	 	printf("%s%x",(i == ETHER_ADDR_LEN) ? "" : ":",*ptr++);
-	     		}while(--i>0);
-     	
-				ip_hdr = (struct ip*)&buffer[14];
-				printf("\tProto: 0x%04x\tDst IP: %d.%d.%d.%d\tSrc IP: %d.%d.%d.%d\tTTL: %d\n",ntohs(eth_hdr->ether_type), NIPQUAD(ip_hdr->ip_dst), NIPQUAD(ip_hdr->ip_src), ip_hdr->ip_ttl);*/
-				
 		    }
 	    }
-      }
    }
    freeifaddrs(addrs);
-   free(intfSockTable);
+   free(intf_sock_table);
    return 0;
 }

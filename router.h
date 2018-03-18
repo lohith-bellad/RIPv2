@@ -53,36 +53,26 @@ Place:-         Los Angeles, California
   (unsigned char) addr[5] 
 	  
 // basic element for interface <-> socket table
-struct ll_addr
-{
-  	struct ifaddrs *if_ad;
+struct ll_addr {
+	struct ifaddrs *if_ad;
 	int sock_id;
 	u_char lan_mac[6];
 	u_char self_mac[6];
 };
 
 // basic element for routing table
-struct routingTableElem{
-	// dst IP addr, from struct in_addr
-	__be32  ipAddr;
-	// dst IP mask, 
-	__be32  ipMask;
-	// length of mask '/24'
-	int maskLen;
-	// eth intf name <- maybe stored for printing
-	char intfName[IFNAMSIZ];
-	// eth intf sock fd <- get from intfSockTable
-	int sockFd;
-	// next hop MAC addr
-	unsigned char nextHopMac[ETH_ALEN];
-	// output intf MAC addr
-	unsigned char outIntfMac[ETH_ALEN];
-	// time stamp, using time(), resolution: 1 second;
-	time_t lastUpdate;
-	// valid bit
-	int valid;
-	// hop count
-	int hop;
+struct routing_table_elem{
+	__be32  ip_addr;                      // dst IP addr, from struct in_addr
+	__be32  ip_mask;                      // dst IP mask;
+	int mask_len;                         // length of mask '/24'
+	char intf_name[IFNAMSIZ];             // eth intf name
+	int sock_fd;                          // eth intf sock fd <- get from
+                                              // intf_sock_table
+	unsigned char next_hop_mac[ETH_ALEN]; // next hop MAC addr
+	unsigned char out_intf_mac[ETH_ALEN]; // output intf MAC addr
+	time_t last_update;                   // time stamp, res: 1 sec 
+	int valid;                            // valid bit
+	int hop;                              // hop count
 };
  
 // RIP payload structure 
@@ -97,18 +87,18 @@ struct rippayload {
  
 // RIP header structure 
 struct riphdr {
-	__u8			comm;
-	__u8			version;
-	__u16		res1;
+	__u8	comm;
+	__u8	version;
+	__u16	res1;
 };
  
 
 // some useful functions, pretty much useful!!!
 void print_hex_ascii_line(const u_char *payload, int len, int offset);
 void print_payload(const u_char *payload, int len);
-int selectWait( int *fdList, int fdNum, int timeoutSec, int timeoutUsec);
-int createSocket(const char *name);
-int isRoutingPort(const char *ifName,char *control);
+int select_wait( int *fd_list, int fd_num, int timeout_sec, int timeout_usec);
+int create_socket(const char *name);
+int is_routing_port(const char *if_name,char *control);
 unsigned int ones32(register unsigned int x);
 
 // routing table interfaces

@@ -1,17 +1,17 @@
 /*-----------------------------------------------------------------------------
-Filename:- 	router.c
-Descritption:- This is the C file containing aux functions for the software 
-			IP router project routing process created as part of CSCI558L 
-			lab project.
-Date:-		Sept 26th 2014 - Oct 5th 2014
-Authors:- 	Weichen Zhao, Lohith Bellad
-			University of Southern California, Los Angeles, California
-Platform:- 	Mac OS X Mountain Lion, Ubuntu 12.04
-Place:-		Los Angeles, California
+Filename:-      router.c
+Descritption:-	This is the C file containing aux functions for the software 
+                IP router project routing process created as part of CSCI558L 
+                lab project.
+Date:-          Sept 26th 2014 - Oct 5th 2014
+Authors:-       Weichen Zhao, Lohith Bellad
+                University of Southern California, Los Angeles, California
+Platform:-      FreeBSD, Ubuntu 12.04
+Place:-         Los Angeles, California
 -----------------------------------------------------------------------------*/
 #include "router.h"
 
-void print_hex_ascii_line(const u_char *payload, int len, int offset){
+void print_hex_ascii_line(const u_char *payload, int len, int offset) {
 	int i;
 	int gap;
 	const u_char *ch;
@@ -47,7 +47,7 @@ void print_hex_ascii_line(const u_char *payload, int len, int offset){
 		ch++;
 	}
 	printf("\n");
-return;
+	return;
 }
 
 void print_payload(const u_char *payload, int len){
@@ -116,60 +116,60 @@ int selectWait( int *fdList, int fdNum, int timeoutSec, int timeoutUsec){
 	return 0; // timed out, no ready fd
 }
 
-// create a socket, and bind to a interface
-int createSocket(const char *name){
-   // create socket
-   int handle = 0;
-   handle = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+/*
+ * Create a socket, and bind to an interface.
+ */
+int create_socket(const char *name) {
+	int handle = 0;
+	if (handle = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL)) < 0) {
+		printf("Socket creation failed for interface %s,
+			errno = %d\n", name, errno);
+		return -1;
+	}
+	struct ifreq ifr;
+	memset(&ifr, 0, sizeof(ifr));
+	if (strcmp(name, "allintf")) {
+		strncpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
+		if (ioctl(handle, SIOCGIFINDEX, &ifr) == -1) {
+			printf("No such device %s, errno = %d\n", name, errno);
+			close(handle);
+			return -1;
+		}
+	} else
+		printf("Listening on all interfaces\n");
 
-   // check interface
-   struct ifreq ifr;
-   memset(&ifr, 0, sizeof(ifr));
-   if(strcmp(name, "allintf")){
-      //printf("listen to all intf %s\n", name);
-      strncpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
-      if( ioctl(handle, SIOCGIFINDEX, &ifr) == -1 ){
-         printf("no such device\n");
-         return -1;
-      }
-   } else {
-      printf("listen to all intf\n");
-   }
-
-   // bind interface
-   struct sockaddr_ll   sll;
-   memset(&sll, 0, sizeof(sll));
-   sll.sll_family       = AF_PACKET;
-   sll.sll_ifindex      = ifr.ifr_ifindex;
-   sll.sll_protocol     = htons(ETH_P_ALL);//htons(0x3333)
-   if ( bind( handle, (struct sockaddr *) &sll, sizeof(sll)) == -1 ){
-      printf("fail binding\n");
-      return 0;
-   }
-   //printf("binding intf index: %d\n", ifr.ifr_ifindex);
-
-   // return socket
-   return handle;
+	struct sockaddr_ll   sll;
+	memset(&sll, 0, sizeof(sll));
+	sll.sll_family       = AF_PACKET;
+	sll.sll_ifindex      = ifr.ifr_ifindex;
+	sll.sll_protocol     = htons(ETH_P_ALL);
+	if (bind(handle, (struct sockaddr *) &sll, sizeof(sll)) == -1) {
+		printf("Fail to bind for interface %s, errno = %d\n",
+			name, errno);
+		close(handle);
+		return -1;
+	}
+	return handle;
 }
 
-// checking interfaces for custom routing
-int isRoutingPort(const char *ifName,char *control){
-   return (memcmp(ifName,"lo",2) != 0) && (memcmp(ifName,control,4) != 0);
+int is_routing_port(const char *ifName,char *control) {
+
+	return (memcmp(ifName,"lo",2) != 0) && 
+		(memcmp(ifName,control,4) != 0);
 }
 
-// function to find '/' CIDR notation
-unsigned int ones32(register unsigned int x){
-   // code from: http://aggregate.ee.engr.uky.edu/MAGIC
-   /* 32-bit recursive reduction using SWAR...
-   but first step is mapping 2-bit values
-   into sum of 2 1-bit values in sneaky way
-   */
-   x -= ((x >> 1) & 0x55555555);
-   x = (((x >> 2) & 0x33333333) + (x & 0x33333333));
-   x = (((x >> 4) + x) & 0x0f0f0f0f);
-   x += (x >> 8);
-   x += (x >> 16);
-   return(x & 0x0000003f);
+unsigned int ones32(register unsigned int x) {
+	/* code from: http://aggregate.ee.engr.uky.edu/MAGIC
+	 * 32-bit recursive reduction using SWAR...
+	 * but first step is mapping 2-bit values
+	 * into sum of 2 1-bit values in sneaky way
+	 */
+	x -= ((x >> 1) & 0x55555555);
+	x = (((x >> 2) & 0x33333333) + (x & 0x33333333));
+	x = (((x >> 4) + x) & 0x0f0f0f0f);
+	x += (x >> 8);
+	x += (x >> 16);
+	return(x & 0x0000003f);
 }
 
 /* 
@@ -184,77 +184,72 @@ unsigned int ones32(register unsigned int x){
  * +-------------+-----------+--------+
  * > entry ==> bigger than existing entry
  */
-// check valid bit
-int routingTableEntryValid( struct routingTableElem *routingTable, int index, \
-							int size ){
-	// within range of size, and valid bit is 1
-	if( index >= 0 && index < size && routingTable[index].valid == 1 )
-		return 1;
-	else
-		return 0;
+int routing_table_entry_valid(struct routing_table_elem *routing_table,
+			      int index, int size) {
+	return (index >= 0 &&
+		index < size &&
+		routing_table[index].valid == 1) ? 1 : 0;
 }
 
-int routingTableUpdate(struct routingTableElem *routingTable, __be32 ip, \
-						__be32 mask, const char* name, int sock, \
-						const unsigned char *mac, const unsigned char *outMac, \
-						int hop, int *size){
+int routing_table_update(struct routing_table_elem *routing_table, __be32 ip,
+			 __be32 mask, const char* name, int sock,
+			 const unsigned char *mac, const unsigned char *out_mac,
+			 int hop, int *size) {
 	int index;
-	// search for matching record
-	routingTableLookUp(routingTable, ip, *size, NULL, NULL, NULL, &index, RETUEN_ALL);
-	if( index == -1 ){
-		// no match, add table entry
-		routingTableAddEntry(routingTable, ip, mask, name, sock, mac, \
-							 outMac, hop, size);
-	} else if( !routingTableEntryValid( routingTable, index, *size ) || \
-				routingTable[index].hop > hop ){// goes to this line, record is valid
-		// there is an matching record, but invalid
-		// or hop count < existing record, update
-		routingTableAddEntry(routingTable, ip, mask, name, sock, mac, \
-							 outMac, hop, &index); // another way of using addEntry
-	} else if( memcmp((const char *)mac,(const char *)routingTable[index].nextHopMac,6) == 0 ){ // match, and is the same route
-		routingTable[index].lastUpdate = time(NULL);
+	routing_table_look_up(routing_table, ip, *size, NULL, NULL, NULL,
+			      &index, RETURN_ALL);
+	if (index == -1) {
+		routing_table_add_entry(routing_table, ip, mask, name, sock, mac,
+					outMac, hop, size);
+	} else if (!routing_table_entry_valid(routing_table, index, *size) ||
+					      routing_table[index].hop > hop) {
+		routing_table_add_entry(routing_table, ip, mask, name, sock, mac,
+					out_mac, hop, &index);
+	} else if (memcmp((const char *)mac,
+		   (const char *)routing_table[index].next_hop_mac, 6) == 0 ) {
+		routing_table[index].last_update = time(NULL);
 	}
 	return 0;
 }
 
-// function to add routing table entry
-int routingTableAddEntry(struct routingTableElem *routingTable, __be32 ip, \
-						 __be32 mask, const char* name, int sock, \
-						 const unsigned char *mac, const unsigned char *outMac, \
-						 int hop, int *size){
-	routingTable[*size].ipAddr = ip & mask;
-	routingTable[*size].ipMask = mask;
-	strcpy(routingTable[*size].intfName, name);
-	routingTable[*size].sockFd = sock;
-	memcpy((char*)routingTable[*size].nextHopMac, (const char*)mac, ETH_ALEN);
-	memcpy((char*)routingTable[*size].outIntfMac, (const char*)outMac, ETH_ALEN);
-	routingTable[*size].maskLen = ones32(mask);
-	routingTable[*size].hop = hop;
-	routingTable[*size].valid = 1;
-	routingTable[*size].lastUpdate = time(NULL);
+int routing_table_add_entry(struct routing_table_elem *routing_table, __be32 ip,
+			    __be32 mask, const char* name, int sock,
+			    const unsigned char *mac, const unsigned char *out_mac,
+			    int hop, int *size) {
+	
+	routing_table[*size].ip_addr = ip & mask;
+	routing_table[*size].ip_mask = mask;
+	strcpy(routing_table[*size].intf_name, name);
+	routing_table[*size].sock_fd = sock;
+	memcpy((char*)routing_table[*size].next_hop_mac, (const char*)mac, ETH_ALEN);
+	memcpy((char*)routing_table[*size].out_intf_mac, (const char*)out_mac, ETH_ALEN);
+	routing_table[*size].mask_len = ones32(mask);
+	routing_table[*size].hop = hop;
+	routing_table[*size].valid = 1;
+	routing_table[*size].last_update = time(NULL);
 
 	*size += 1;
 
 	return 0;
 }
 
-// function to lookup entry in routing table
-int routingTableLookUp(struct routingTableElem *routingTable, __be32 ip, \
-						int size, unsigned char *mac, unsigned char *outMac, \
-						int *sock, int *matchIndex, int FLAG){
+int routing_table_look_up(struct routing_table_elem *routing_table, __be32 ip,
+			  int size, unsigned char *mac, unsigned char *outMac,
+			  int *sock, int *matchIndex, int FLAG) {
+
 	int i, index = -1, indexMaskLen = -1;
 	__be32 maskedIp;
 	for(i=0; i<size; i++){
-		maskedIp = ip & routingTable[i].ipMask;
+		maskedIp = ip & routing_table[i].ipMask;
 		//printf("MASKED IP %d: %d.%d.%d.%d\n", i, NIPQUAD(maskedIp));
-		if( ( maskedIp == routingTable[i].ipAddr ) && \
-			( FLAG || routingTable[i].valid ) ){
+		if( ( maskedIp == routing_table[i].ipAddr ) && \
+			( FLAG || routing_table[i].valid ) ){
 			//printf("entry matched, index %d\n", i);
 			if(index == -1 && indexMaskLen == -1){
-				indexMaskLen = routingTable[i].maskLen;
+				indexMaskLen = routing_table[i].maskLen;
 				index = i;
-			} else if(routingTable[i].maskLen > indexMaskLen) {
-				indexMaskLen = routingTable[i].maskLen;
+			} else if(routing_table[i].maskLen > indexMaskLen) {
+				indexMaskLen = routing_table[i].maskLen;
 				index = i;
 			}
 		} else {
@@ -272,16 +267,16 @@ int routingTableLookUp(struct routingTableElem *routingTable, __be32 ip, \
 		*matchIndex = index;
 	// if have pointer for output sending information, assign
 	if( mac && outMac && sock){
-		memcpy((char*)mac, (const char*)routingTable[index].nextHopMac, ETH_ALEN);
-		memcpy((char*)outMac, (const char*)routingTable[index].outIntfMac, ETH_ALEN);
-		*sock = routingTable[index].sockFd;
+		memcpy((char*)mac, (const char*)routing_table[index].next_hop_mac, ETH_ALEN);
+		memcpy((char*)outMac, (const char*)routing_table[index].outIntfMac, ETH_ALEN);
+		*sock = routing_table[index].sockFd;
 	}
 
 	return 0;
 }
 
 // function to dump the routing table
-int routingTableDump(struct routingTableElem *routingTable, int size){
+int routing_tableDump(struct routing_tableElem *routing_table, int size){
 	int i;
 	printf("\n+--------------------------------------------------------------------------------------------------------------------------------------------------------------+\n");
 	printf("|                                                                  ROUTING TABLE                                                                               |\n");
@@ -290,11 +285,11 @@ int routingTableDump(struct routingTableElem *routingTable, int size){
 	printf("+-----------------+-----------------+------------+------------------+--------+-------------------+-------------------+-----------+-----------+-----------------+\n");
 	for(i=0; i<size; i++){
 		printf("| %3d.%3d.%3d.%3d | %3d.%3d.%3d.%3d | %10d | %16s | %6d | %02x:%02x:%02x:%02x:%02x:%02x | %02x:%02x:%02x:%02x:%02x:%02x | %9d | %9d | %15d |\n", \
-		NIPQUAD(routingTable[i].ipAddr), NIPQUAD(routingTable[i].ipMask), \
-		routingTable[i].maskLen, routingTable[i].intfName, \
-		routingTable[i].sockFd, MAC_ADDR(routingTable[i].nextHopMac), \
-		MAC_ADDR(routingTable[i].outIntfMac), routingTable[i].hop, \
-		routingTable[i].valid, (int)routingTable[i].lastUpdate);
+		NIPQUAD(routing_table[i].ipAddr), NIPQUAD(routing_table[i].ipMask), \
+		routing_table[i].maskLen, routing_table[i].intfName, \
+		routing_table[i].sockFd, MAC_ADDR(routing_table[i].next_hop_mac), \
+		MAC_ADDR(routing_table[i].outIntfMac), routing_table[i].hop, \
+		routing_table[i].valid, (int)routing_table[i].lastUpdate);
 	}
 	printf("+--------------------------------------------------------------------------------------------------------------------------------------------------------------+\n");
 	return 0;
