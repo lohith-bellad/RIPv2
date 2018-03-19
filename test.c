@@ -1,68 +1,71 @@
 /*-----------------------------------------------------------------------------
-Filename:- 	test.c
-Descritption:- This is the main implementation C file for the software IP 
-			router project routing process created as part of CSCI558L 
-			lab project.
+Filename:-	test.c
+Descritption:- 	This is the main implementation C file for the software IP 
+		router project routing process created as part of CSCI558L 
+		lab project.
 Date:-		Sept 26th 2014 - Oct 5th 2014
-Authors:- 	Lohith Bellad,Weichen Zhao
-			University of Southern California, Los Angeles, California
-Platform:- 	Mac OS X Mountain Lion, Ubuntu 12.04
+Authors:- 	Lohith Bellad, Weichen Zhao
+		University of Southern California, Los Angeles, California
+Platform:- 	FreeBSD, Ubuntu 12.04
 Place:-		Los Angeles, California
 -----------------------------------------------------------------------------*/
 #include "router.h"
 
-struct routing_table_elem route_table[50];//creating table for large number of networks
-struct ll_addr* intf_sock_table;//pointer to socket <-> interface table
-int t_size;//routing table size
+struct routing_table_elem route_table[50];
+struct ll_addr* intf_sock_table;
+int t_size;
 int intf_count = 0;
 
-// function to send RIP response packets
-int sendRipResponse(){
-    int i, ret = 0, err = 0;
-    struct sockaddr_in *sock_addr,*mask_addr;
-    struct rippayload *rip_payload;
-    u_char rip_res_buffer[1500],rip_rt[500];
-    u_char rip_dip[4] = "\xE0\x00\x00\x09";
-    u_char rip_req_buffer[100]; 
-    struct riphdr *rip_hdr;
-    u_char multicast[6] = "\x01\x00\x5e\x00\x00\x09";
-    unsigned long masked_addr;
+int send_rip_response() {
+ 
+	int i, ret = 0, err = 0;
+	struct sockaddr_in *sock_addr,*mask_addr;
+	struct rippayload *rip_payload;
+	u_char rip_res_buffer[1500],rip_rt[500];
+	u_char rip_dip[4] = "\xE0\x00\x00\x09";
+	u_char rip_req_buffer[100];
+	struct riphdr *rip_hdr;
+	u_char multicast[6] = "\x01\x00\x5e\x00\x00\x09";
+	unsigned long masked_addr;
   
-    // build RIP request message
-    memset(rip_req_buffer,0,sizeof(rip_req_buffer));
-    rip_hdr = (struct riphdr *)&rip_req_buffer[42];
-    rip_hdr->comm = 1;
-    rip_hdr->version = 2;
-    rip_hdr->res1 = 0;
+	memset(rip_req_buffer, 0, sizeof(rip_req_buffer));
+	rip_hdr = (struct riphdr *)&rip_req_buffer[42];
+	rip_hdr->comm = 1;
+	rip_hdr->version = 2;
+	rip_hdr->res1 = 0;
 	
-    for( i=0; i < intfCount; i++)
-    {
-		mask_addr = (struct sockaddr_in *)intf_sock_table[i].if_ad->ifa_netmask;
-		sock_addr = (struct sockaddr_in *)intf_sock_table[i].if_ad->ifa_addr;
-		masked_addr = (sock_addr->sin_addr.s_addr & mask_addr->sin_addr.s_addr);
+	for(i = 0; i < intfCount; i++) {
+		mask_addr = (struct sockaddr_in *)intf_sock_table[i]. \
+						  if_ad->ifa_netmask;
+		sock_addr = (struct sockaddr_in *)intf_sock_table[i]. \
+						  if_ad->ifa_addr;
+		masked_addr = (sock_addr->sin_addr.s_addr & 
+				mask_addr->sin_addr.s_addr);
 		rip_payload = (struct rippayload *)&rip_rt[i*20];
 		rip_payload->family = htons(2);
 		rip_payload->res2 = 0;
-		memcpy((char *)&rip_payload->address,(char *)&masked_addr,4);
-		memcpy((char *)&rip_payload->res3,(char *)&mask_addr->sin_addr.s_addr,4);
-		//printf("%d.%d.%d.%d\n", NIPQUAD(rip_payload->address));
-		rip_payload->address &= rip_payload->res3; // the address must be masked
-		//printf("%d.%d.%d.%d\n", NIPQUAD(rip_payload->address));
+		memcpy((char *)&rip_payload->address, (char *)&masked_addr, 4);
+		memcpy((char *)&rip_payload->res3,
+		       (char *)&mask_addr->sin_addr.s_addr, 4);
+		rip_payload->address &= rip_payload->res3;
 		rip_payload->res4 = 0;
 		rip_payload->metric = htonl(1);		
 	}
-	
-    for( i=0; i < intfCount; i++)
-	{
-		// create headers
-		sock_addr = (struct sockaddr_in *)intf_sock_table[i].if_ad->ifa_addr;
-    		buildEther(multicast, intf_sock_table[i].self_mac, 0x0800, rip_req_buffer);
-		buildIp((u_char *)&sock_addr->sin_addr.s_addr,rip_dip, 17, 32, rip_req_buffer + ETH_HDR_LEN);
-		buildUdp(520, 520, 32, rip_req_buffer + ETH_HDR_LEN + IP_HDR_LEN);
+	for( i = 0; i < intfCount; i++) {
+		sock_addr = (struct sockaddr_in *)intf_sock_table[i]. \
+						  if_ad->ifa_addr;
+    		build_ether(multicast, intf_sock_table[i].self_mac, 
+			   0x0800, rip_req_buffer);
+		build_ip((u_char *)&sock_addr->sin_addr.s_addr,rip_dip, 
+			17, 32, rip_req_buffer + ETH_HDR_LEN);
+		build_udp(520, 520, 32, 
+			 rip_req_buffer + ETH_HDR_LEN + IP_HDR_LEN);
 
-		// build the RIP response packets 
-		buildIp((u_char *)&sock_addr->sin_addr.s_addr,rip_dip, 17, (8+4+(intfCount*20)), rip_req_buffer + ETH_HDR_LEN);
-		buildUdp(520, 520, (8+4+(intfCount*20)), rip_req_buffer + ETH_HDR_LEN + IP_HDR_LEN);
+		build_ip((u_char *)&sock_addr->sin_addr.s_addr,rip_dip, 
+			 17, (8+4+(intfCount*20)),
+			 rip_req_buffer + ETH_HDR_LEN);
+		build_udp(520, 520, (8+4+(intfCount*20)), 
+			 rip_req_buffer + ETH_HDR_LEN + IP_HDR_LEN);
 		
 		memcpy(rip_res_buffer,rip_req_buffer,42);
   	        rip_hdr = (struct riphdr *)&rip_res_buffer[42];
@@ -72,10 +75,8 @@ int sendRipResponse(){
 	 	rip_hdr->res1 = 0;
 		memcpy(&rip_res_buffer[46],rip_rt, (intfCount*20));
 		ret = 46 + (intfCount*20);
-		//print_payload(rip_res_buffer, ret);
-		// send the RIP response packet
-		if( (err = send(intf_sock_table[i].sock_id,rip_res_buffer,ret,0)) != ret)
-		{
+		if ((err = send(intf_sock_table[i].sock_id,
+				rip_res_buffer, ret, 0)) != ret) {
 			printf("Error sending the RIP response packet\n");
 			exit(1);
 		}
@@ -83,73 +84,66 @@ int sendRipResponse(){
 	return 0;
 }
 
-// function to send the RIP response packets
-int sendRipRequest(){
+int send_rip_request() {
 	int i, ret = 0, err = 0;
-    struct sockaddr_in *sock_addr;//,*mask_addr;
-    struct rippayload *rip_payload;
-    //u_char rip_res_buffer[1500],
-	//u_char rip_rt[500];
-    u_char rip_dip[4] = "\xE0\x00\x00\x09";
+	struct sockaddr_in *sock_addr;
+	struct rippayload *rip_payload;
+	u_char rip_dip[4] = "\xE0\x00\x00\x09";
 	u_char rip_req_buffer[100]; 
-    struct riphdr *rip_hdr;
-    u_char multicast[6] = "\x01\x00\x5e\x00\x00\x09";
+	struct riphdr *rip_hdr;
+	u_char multicast[6] = "\x01\x00\x5e\x00\x00\x09";
 	
-    // build RIP request message
-    memset(rip_req_buffer,0,sizeof(rip_req_buffer));
-    rip_hdr = (struct riphdr *)&rip_req_buffer[42];
-    rip_hdr->comm = 1;
-    rip_hdr->version = 2;
-    rip_hdr->res1 = 0;
-    rip_payload = (struct rippayload *)&rip_req_buffer[46];
-    rip_payload->family = 0;// payload
-    rip_payload->res2 = 0;
-    rip_payload->address = 0;
-    rip_payload->res3 = 0;
-    rip_payload->res4 = 0;
-    rip_payload->metric = htonl(16);
+	memset(rip_req_buffer,0,sizeof(rip_req_buffer));
+	rip_hdr = (struct riphdr *)&rip_req_buffer[42];
+	rip_hdr->comm = 1;
+	rip_hdr->version = 2;
+	rip_hdr->res1 = 0;
+	rip_payload = (struct rippayload *)&rip_req_buffer[46];
+	rip_payload->family = 0;
+	rip_payload->res2 = 0;
+	rip_payload->address = 0;
+	rip_payload->res3 = 0;
+ 	rip_payload->res4 = 0;
+ 	rip_payload->metric = htonl(16);
 	
-    // loop to send RIP request and response messages on all interfaces
-    for( i=0; i < intfCount; i++)
-    {
-	    sock_addr = (struct sockaddr_in *)intf_sock_table[i].if_ad->ifa_addr;
-	    // build ether header
-    	    buildEther(multicast, intf_sock_table[i].self_mac, 0x0800, rip_req_buffer);
-	    // build IP header
-	    buildIp((u_char *)&sock_addr->sin_addr.s_addr,rip_dip, 17, 32, rip_req_buffer + ETH_HDR_LEN);
-	    // build udp header
-	    buildUdp(520, 520, 32, rip_req_buffer + ETH_HDR_LEN + IP_HDR_LEN);
-	    ret = 68;
-	    // send the request packet!!!
-	    if( (err = send(intf_sock_table[i].sock_id,rip_req_buffer,ret,0)) != ret)
-	    	{
+	for (i = 0; i < intfCount; i++) {
+		sock_addr = (struct sockaddr_in *)intf_sock_table[i]. \
+						  if_ad->ifa_addr;
+		build_ether(multicast, intf_sock_table[i].self_mac,
+			   0x0800, rip_req_buffer);
+		build_ip((u_char *)&sock_addr->sin_addr.s_addr,rip_dip,
+			 17, 32, rip_req_buffer + ETH_HDR_LEN);
+		build_udp(520, 520, 32,
+			  rip_req_buffer + ETH_HDR_LEN + IP_HDR_LEN);
+		ret = 68;
+    
+		if( (err = send(intf_sock_table[i].sock_id,
+				rip_req_buffer, ret, 0)) != ret) {
 			printf("Error sending the RIP request packet\n");
 			exit(1);
 		}	
-    }
+	}
 	return 0;
 }
 
-// need two parameters, one is routing table, the other one is intf <-> sock table
-void *check( ){
+void *check() {
+
 	int i;
 	printf("RIP thread started\n");
-	while(1){
-		selectWait(NULL, 0, 30, 0);
-		// check all the valid entry, see if anyone should be expired
-		for(i = intfCount; i < t_size; i++){
+	while (1) {
+		select_wait(NULL, 0, 30, 0);
+		for(i = intf_count; i < t_size; i++){
 			if(route_table[i].valid)
-				if(time(NULL) - route_table[i].lastUpdate > 180)
+				if(time(NULL) - route_table[i].last_update > 180)
 					route_table[i].valid = 0;
 		}
-		routingTableDump(route_table, t_size);
+		routing_table_dump(route_table, t_size);
 		printf("RIP thread sent RIP response\n");
-		// send response packets
-		sendRipResponse();
-		routingTableDump(route_table, t_size);
+		send_rip_response();
+		routing_table_dump(route_table, t_size);
 	}
 }
-// main function hahahaaaa
+
 int main(int argc, char **argv) {
    
 	int handle = 0,ret=0,s;
@@ -169,8 +163,6 @@ int main(int argc, char **argv) {
 	__be32 dest_ip;
 	u_char *ptr;
 	u_char fin_dst_mac[6], fin_src_mac[6];
-   
-#ifdef FUNCTION_DEMO
 	u_char *res_ptr;
 	int hop_cnt;   
 	struct riphdr *rip_hdr;
@@ -181,7 +173,7 @@ int main(int argc, char **argv) {
 	pthread_t wait;
 	struct in_addr *sock_addr_r,*mask_addr_r;
 	u_char rip_rt[500];
-#endif  	   
+	
 	if(argc < 1) {
 	   printf("Usage: sudo ./route eth#");
 	   return 0;
@@ -195,7 +187,7 @@ int main(int argc, char **argv) {
 	memset(&ifr, 0, sizeof(ifr));
 	memset(&sll, 0, sizeof(sll));
 	sll.sll_family    = AF_PACKET;
-	sll.sll_protocol  = htons(ETH_P_ALL);//htons(0x3333)
+	sll.sll_protocol  = htons(ETH_P_ALL);
 	if (bind(handle, (struct sockaddr *) &sll, sizeof(sll)) == -1) {
 		printf("Failed binding to socket\n");
 		return 0;
@@ -249,10 +241,10 @@ int main(int argc, char **argv) {
  						create_socket(tmp->ifa_name);
 					intf_sock_table[table_index].if_ad = 
 						tmp;
-					memcpy (intf_sock_table[table_index]. \
-						self_mac,ifr.ifr_ifru. \
-						ifru_hwaddr.sa_data,6);
-					table_index += 1;
+					memcpy(intf_sock_table[table_index]. \
+						self_mac, ifr.ifr_ifru. \
+						ifru_hwaddr.sa_data, 6);
+					table_index++;
 					sprintf((char *)ptrr,"%c",mac[5]);
 					ptrr = ptrr+1;
 				}
