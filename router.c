@@ -441,15 +441,15 @@ int create_icmp(u_char *buffer, u_char *icmp_buffer, struct ll_addr *intfSockTab
 	return 102; // always return 102 bytes not a problem!!!
 }
 
-// function to create ICMP host unreachable message
-int create_icmp_hu(u_char *buffer, u_char *icmp_buffer, struct ll_addr *intfSockTable, int t_size)
-{
+int create_icmp_host_unreach(u_char *buffer, u_char *icmp_buffer, 
+			     struct ll_addr *intf_sock_table, int t_size) {
+
 	struct icmphdr *icmp_hdr;
 	struct sockaddr_in *sock_addr;
 	int i,found = 0;
 	unsigned short check_sum;
 	struct ip *iphdr;
-	
+
 	// finding the IP address of the interface on which we are sending the data
 	for(i = 0; i < t_size; i++)
 	{
@@ -558,43 +558,51 @@ uint16_t checksum(void* vdata,size_t length)
     return htons(~acc);
 }
 
-//build ether header
-int buildEther(const u_char* dmac, const u_char* smac, ushort etherType, u_char* buffer)
-{
+int build_ether(const u_char* dmac, const u_char* smac,
+		ushort etherType, u_char* buffer) {
+
+	if (dmac == NULL || smac == NULL || buffer == NULL)
+		return -1; 
 	struct ether_header *eth = (struct ether_header*)buffer;
 	memcpy(eth->ether_dhost, dmac, 6);
 	memcpy(eth->ether_shost, smac, 6);
 	eth->ether_type = htons(etherType);
+
 	return 0;
 }
 
-//build IP header
-int buildIp(const u_char* sip, const u_char* dip, ushort type, int extLen, u_char *buffer)
-{
-	struct iphdr *ip = (struct iphdr*)buffer;
+int 
+build_ip(const u_char* sip, const u_char* dip, ushort type,
+	 int ext_len, u_char *buffer) {
 
+	if (sip == NULL || dip == NULL || buffer == NULL)
+		return -1;
+	struct iphdr *ip = (struct iphdr*)buffer;
 	ip->ihl = 5;
 	ip->version = 4;
-	ip->tot_len = htons(sizeof(struct iphdr) + extLen); // udp->8
+	ip->tot_len = htons(sizeof(struct iphdr) + ext_len);
 	ip->frag_off = 0;
 	ip->id = htons(54321);
-	ip->ttl = 64; // hops
+	ip->ttl = 64;
 	ip->protocol = type;
 	memset(&ip->check, 0, sizeof(ip->check));
 	memcpy(&ip->saddr, sip, 4);
 	memcpy(&ip->daddr, dip, 4);
-	ip->check = checksum(buffer, (ip->ihl)*4 );
+	ip->check = checksum(buffer, (ip->ihl)*4);
+
 	return 0;
 }
 
-// build UDP header
-int buildUdp(ushort srcp, ushort dstp, ushort len, u_char* buffer){
+int 
+build_udp(ushort srcp, ushort dstp, ushort len, u_char* buffer) {
+
+	if (buffer == NULL)
+		return -1;	
 	struct udphdr *udp = (struct udphdr*)buffer;
 	udp->source = htons(srcp);
 	udp->dest = htons(dstp);
 	udp->len = htons(len);
 	memset(&udp->check, 0, sizeof(udp->check));
+
 	return 0;
 }
-
-

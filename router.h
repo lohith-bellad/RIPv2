@@ -29,10 +29,10 @@ Place:-         Los Angeles, California
 #include <time.h>
 #include <pthread.h>
 
-#define ETH_HDR_LEN 14
-#define IP_HDR_LEN 20
-#define UDP_HDR_LEN 8
-#define TYPE_UDP 0x11
+#define ETH_HDR_LEN	14
+#define IP_HDR_LEN	20
+#define UDP_HDR_LEN	8
+#define TYPE_UDP	0x11
 
 //for FLAG in routingTableLookUp parameters
 #define RETURN_VALID 0
@@ -61,9 +61,9 @@ struct ll_addr {
 };
 
 // basic element for routing table
-struct routing_table_elem{
-	__be32  ip_addr;                      // dst IP addr, from struct in_addr
-	__be32  ip_mask;                      // dst IP mask;
+struct routing_table_elem {
+	__be32  ip_addr;                      // dst IP addr
+	__be32  ip_mask;                      // dst IP mask
 	int mask_len;                         // length of mask '/24'
 	char intf_name[IFNAMSIZ];             // eth intf name
 	int sock_fd;                          // eth intf sock fd <- get from
